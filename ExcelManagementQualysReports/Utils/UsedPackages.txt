@@ -1,0 +1,5 @@
+﻿Epplus.Core(1.5.4)
+Epplus.Core.Extensions(2.2.1)
+ExcelDataReader(3.4.0)
+Microsoft.Office.Intelop.Excel(15.0.4795.1000)
+Spire.XLS(8.6.1)
