@@ -12,4 +12,8 @@
     <PackageReference Include="Spire.XLS" Version="8.10.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Resources\" />
+  </ItemGroup>
+
 </Project>

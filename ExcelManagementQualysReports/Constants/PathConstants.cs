@@ -6,11 +6,15 @@ namespace ExcelManagementQualysReports.Constants
 {
     public static class PathConstants
     {
-        public const string eslPath = @"C:\Users\dstoyanov5\OneDrive - DXC Production\source\repos\ExcelManagementQualysReports\ExcelManagementQualysReports\Resources\esl_report.7143493.xlsx";
+        public const string eslPath = "";
 
-        public const string rawDataPath = @"C:\Users\dstoyanov5\OneDrive - DXC Production\source\repos\ExcelManagementQualysReports\ExcelManagementQualysReports\Resources\ConfigFindingsMDC_NotProcessed.xlsx";
+        public const string MDC_ConfigPath = @"";
 
-        //public const string rawDataTestFile = @"C:\Users\stoyadim\source\repos\MatchingBetweenTwoExcelFiles\MatchingBetweenTwoExcelFiles\Resources\ConfigRawdata - Copy.xlsx";
+        public const string MPC_ConfigPath = @"C:\Users\dstoyanov5\OneDrive - DXC Production\source\repos\ExcelManagementQualysReports\ExcelManagementQualysReports\Resources\MPC_ConfigFindingsJuly2019.xlsx";
+
+        public const string MPC_MissingPatchPath = @"C:\Users\dstoyanov5\OneDrive - DXC Production\source\repos\ExcelManagementQualysReports\ExcelManagementQualysReports\Resources\MPC_MissingPatchFindingsJuly2019.xlsx";
+
+        public const string MPC_EOLfindings = @"C:\Users\dstoyanov5\OneDrive - DXC Production\source\repos\ExcelManagementQualysReports\ExcelManagementQualysReports\Resources\MPC_EOLfindingsJuly2019.xlsx";
 
     }
 }
