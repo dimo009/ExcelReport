@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 
@@ -19,46 +20,181 @@ namespace ExcelManagementQualysReports
             var clock = new Stopwatch();
 
             clock.Start();
+           
+            
 
-            //FileInfo file = new FileInfo(PathConstants.MDC_ConfigPath);
-            FileInfo fileConfigMPC = new FileInfo(PathConstants.MPC_ConfigPath);
-            FileInfo filePatchMPC = new FileInfo(PathConstants.MPC_MissingPatchPath);
-            FileInfo fileEOLMPC = new FileInfo(PathConstants.MPC_EOLfindings);
+            //Getting all files name from the Resource directory
+            IEnumerable<string> files = Directory.EnumerateFiles(PathConstants.directoryPath);
+
             //it is hardcoded for testing purposes. When the program is ready, use the DateTime.Now.Month-1
             int currentMonth = DateTime.Now.Month;
-            Dictionary<string, List<Server>> eslDict = new Dictionary<string, List<Server>>();
-
+           
             //int currentMonth = Convert.ToInt32(DateTime.Now.Month-1);
             int currentYear = Convert.ToInt32(DateTime.Now.Year);
 
-
-
-            using (ExcelPackage package = new ExcelPackage(fileEOLMPC))
+            foreach (var file in files)
             {
-                var program = new Program();
+
+                FileInfo currentExcelFile = new FileInfo(file);
+
+                using (ExcelPackage package = new ExcelPackage(currentExcelFile))
+                {
+                    var program = new Program();
 
 
-                FilterESLdataAndCopytToAnotherSheet(package); //1
+                    FilterESLdataAndCopytToAnotherSheet(package); //1
 
-                FilterDataAndCopyToAnotherSheet(currentMonth, currentYear, package);  //2
+                    FilterDataAndCopyToAnotherSheet(currentMonth, currentYear, package);  //2
 
-                AddAdditionalColumsForTheMatchedData(package); //3
+                    AddAdditionalColumsForTheMatchedData(package); //3
 
-                eslDict = CreateESLDatabase(package);
-                Console.WriteLine();
+                    FillInTheData(package, program);//4
 
-                FillInTheData(package, program, eslDict); //4
+                    CreatePivotTable(package);  //5
 
-                CreatePivotTable(package);  //5
+                  
 
-                clock.Stop();
-                Console.WriteLine("Time elapsed: {0:hh\\:mm\\:ss}", clock.Elapsed);
-
+                }
             }
+            clock.Stop();
+             Console.WriteLine("Time elapsed: {0:hh\\:mm\\:ss}", clock.Elapsed);
         }
 
-        private static void FillInTheData(ExcelPackage package, Program program, Dictionary<string, List<Server>> eslDict)
+  
+
+        private static List<Server> FillWithDataTheListWithTheServers(Dictionary<string, List<Server>> eslDict)
         {
+            var list = new List<Server>();
+
+            foreach (var item in eslDict.Values)
+            {
+                foreach (var server in item)
+                {
+                    list.Add(server);
+                }
+            }
+
+            return list;
+        }
+
+        private static Dictionary<string, List<QualysUnit>> CreateQualysDataContainer(ExcelPackage package)
+        {
+            var dict = new Dictionary<string, List<QualysUnit>>();
+
+            ExcelWorksheet rawDataTab = package.Workbook.Worksheets[1];
+
+            int colsInRawDataTab = rawDataTab.Dimension.Columns;
+            int rowsInRawDataTab = rawDataTab.Dimension.Rows;
+
+
+            for (int row = 2; row <= rowsInRawDataTab; row++)
+            {
+                string ip = Convert.ToString(rawDataTab.Cells[row, 1].Value);
+
+                QualysUnit unit = new QualysUnit();
+
+
+                unit.Network = Convert.ToString(rawDataTab.Cells[row, 2].Value);
+                unit.DNS = Convert.ToString(rawDataTab.Cells[row, 3].Value);
+                unit.NetBIOS = Convert.ToString(rawDataTab.Cells[row, 4].Value);
+                unit.TrackingMethod = Convert.ToString(rawDataTab.Cells[row, 5].Value);
+                unit.OSQualys = Convert.ToString(rawDataTab.Cells[row, 6].Value);
+                unit.IpStatusQ = Convert.ToString(rawDataTab.Cells[row, 7].Value);
+                unit.QID = Convert.ToString(rawDataTab.Cells[row, 8].Value);
+                unit.Title = Convert.ToString(rawDataTab.Cells[row, 9].Value);
+                unit.VulnStatus = Convert.ToString(rawDataTab.Cells[row, 10].Value);
+                unit.Type = Convert.ToString(rawDataTab.Cells[row, 11].Value);
+                unit.Severity = Convert.ToString(rawDataTab.Cells[row, 12].Value);
+                unit.Port = Convert.ToString(rawDataTab.Cells[row, 13].Value);
+                unit.Protocol = Convert.ToString(rawDataTab.Cells[row, 14].Value);
+                unit.FQDN = Convert.ToString(rawDataTab.Cells[row, 15].Value);
+                unit.SSL = Convert.ToString(rawDataTab.Cells[row, 16].Value);
+                unit.FirstDetected = Convert.ToDateTime(rawDataTab.Cells[row, 17].Value);
+                unit.LastDetected = Convert.ToDateTime(rawDataTab.Cells[row, 18].Value);
+                unit.TimesDetected = Convert.ToString(rawDataTab.Cells[row, 19].Value);
+                unit.DateLastDetected = Convert.ToDateTime(rawDataTab.Cells[row, 20].Value);
+                unit.CVE_ID = Convert.ToString(rawDataTab.Cells[row, 21].Value);
+                unit.VendorReference = Convert.ToString(rawDataTab.Cells[row, 22].Value);
+                unit.Bultraq_ID = Convert.ToString(rawDataTab.Cells[row, 23].Value);
+                unit.Solution = Convert.ToString(rawDataTab.Cells[row, 24].Value);
+                unit.PCI_Vuln = Convert.ToString(rawDataTab.Cells[row, 25].Value);
+                unit.TicketStatus = Convert.ToString(rawDataTab.Cells[row, 26].Value);
+                unit.Instance = Convert.ToString(rawDataTab.Cells[row, 27].Value);
+                unit.Category = Convert.ToString(rawDataTab.Cells[row, 28].Value);
+
+                if (!dict.ContainsKey(ip))
+                {
+                    dict.Add(ip, new List<QualysUnit>());
+                    dict[ip].Add(unit);
+                }
+                else
+                {
+                    dict[ip].Add(unit);
+                }
+            }
+
+            return dict;
+        }
+
+        private static Dictionary<string, List<Server>> CreateESLDatabase(ExcelPackage package)
+        {
+            var dict = new Dictionary<string, List<Server>>();
+            ExcelWorksheet ESLworksheet = package.Workbook.Worksheets[2];
+            int rowCount = ESLworksheet.Dimension.Rows;
+
+            var permittedValuesOfTheServers = new List<string> { "move to production", "in production", "installed in DC", "delivered", "ordered" };
+
+            for (int row = 2; row <= rowCount; row++)
+            {
+
+                string ipAddress = Convert.ToString(ESLworksheet.Cells[row, 9].Value);
+
+
+                if (string.IsNullOrEmpty(ipAddress))
+                {
+                    continue;
+                }
+
+                string systemStatusForFiltering = Convert.ToString(ESLworksheet.Cells[row, 4].Value);
+
+                if (permittedValuesOfTheServers.Any(s => s.Equals(systemStatusForFiltering)))
+                {
+                    Server server = new Server();
+
+                    server.IP = ipAddress;
+                    server.SystemName = Convert.ToString(ESLworksheet.Cells[row, 1].Value);
+                    server.OSVersion = Convert.ToString(ESLworksheet.Cells[row, 3].Value);
+                    server.SystemStatus = systemStatusForFiltering;
+                    server.SystemType = Convert.ToString(ESLworksheet.Cells[row, 5].Value);
+                    server.DowntimeContact = Convert.ToString(ESLworksheet.Cells[row, 6].Value);
+                    server.TechnicalOwner = Convert.ToString(ESLworksheet.Cells[row, 7].Value);
+                    server.IpType = Convert.ToString(ESLworksheet.Cells[row, 8].Value);
+                    server.ConsoleIP = Convert.ToString(ESLworksheet.Cells[row, 10].Value);
+
+                    if (!dict.ContainsKey(ipAddress))
+                    {
+                        dict.Add(ipAddress, new List<Server>());
+                        dict[ipAddress].Add(server);
+                    }
+                    else
+                    {
+                        dict[ipAddress].Add(server);
+                    }
+                }
+
+            }
+            return dict;
+
+        }
+
+
+
+
+
+
+        private static void FillInTheData(ExcelPackage package, Program program)
+        {
+
             program = new Program();
 
             //Selecting the "FilteredData" sheet
@@ -80,214 +216,136 @@ namespace ExcelManagementQualysReports
 
 
 
-        }
+            //Adding two 0 on the first two indeces because the List starts from 0 and the excel from 1. The first row of the excel are the headers -> so two zeros to compensate that
 
-        private static Dictionary<string, List<Server>> CreateESLDatabase(ExcelPackage package)
-        {
-            var dict = new Dictionary<string, List<Server>>();
-            ExcelWorksheet ESLworksheet = package.Workbook.Worksheets[2];
-            int rowCount = ESLworksheet.Dimension.Rows;
+            var IPvaluesFromESL = new List<string>() { "0", "0" };
+            var consoleIPValuesESL = new List<string>() { "0", "0" };
 
-            var permittedValuesOfTheServers = new List<string> { "move to production", "in production", "installed in DC", "delivered", "ordered" };
+            // Filling in the IP and ConsoleIP values from ESL
+            // initial value of i is 2, because in excel the enumeration starts from 1. In the first row are the headers of the excelsheet
 
+            for (int i = 2; i <= rowCountESL - 2; i++)
+            {
+                if (!string.IsNullOrEmpty(Convert.ToString(ESL.Cells[i, 9].Value)))
+                {
+                    IPvaluesFromESL.Add(Convert.ToString(ESL.Cells[i, 9].Value));
+                }
+                else
+                {
+                    IPvaluesFromESL.Add("0");
+                }
+                if (!string.IsNullOrEmpty(Convert.ToString(ESL.Cells[i, 10].Value)))
+                {
+                    consoleIPValuesESL.Add(Convert.ToString(ESL.Cells[i, 10].Value));
+                }
+                else
+                {
+                    consoleIPValuesESL.Add("0");
+                }
+
+            }
+
+            // Iteration through the IP values from the Filtered data
             for (int row = 2; row <= rowCount; row++)
             {
+                string ip = Convert.ToString(filteredData.Cells[row, 1].Value);
 
-                string ipAddress = Convert.ToString(ESLworksheet.Cells[row, 9].Value);
-                string systemStatusForFiltering = Convert.ToString(ESLworksheet.Cells[row, 4].Value);
-                if (string.IsNullOrEmpty(ipAddress))
+                //finding the index of an existing IP
+                int index = IPvaluesFromESL.FindIndex(io => io.Equals(ip, StringComparison.Ordinal));
+
+                //finding the index of repeatable IPs
+                //var indeces = Enumerable.Range(0, IPvaluesFromESL.Count).Where(i => IPvaluesFromESL[i] == ip).ToList();
+
+
+                int colIndex = 2;
+
+                if (index == -1)
                 {
+                    filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
+                    filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
+                    filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
+                    filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
+                    filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
+                    filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
+                    filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
+                    Console.WriteLine($"Raw {row} was filled in with Empty value");
                     continue;
                 }
-                if (permittedValuesOfTheServers.Any(s => s.Equals(systemStatusForFiltering)))
+
+                //there is no need to check the server status anymore because the data from ESL was filtered in one of the previous steps
+                //string serverStatus = Convert.ToString(ESL.Cells[index, 5].Value);
+
+                colIndex = 2;
+
+                if (program.CheckIfESLValuesContainTheIP(ip, IPvaluesFromESL))
+
                 {
-                    Server server = new Server();
+                    //INterchanged values
 
-                    server.IP = ipAddress;
-                    server.SystemName = Convert.ToString(ESLworksheet.Cells[row, 1].Value);
-                    server.OSVersion = Convert.ToString(ESLworksheet.Cells[row, 3].Value);
-                    server.SystemStatus = Convert.ToString(ESLworksheet.Cells[row, 4].Value);
-                    server.SystemType = Convert.ToString(ESLworksheet.Cells[row, 5].Value);
-                    server.DowntimeContact = Convert.ToString(ESLworksheet.Cells[row, 6].Value);
-                    server.TechnicalOwner = Convert.ToString(ESLworksheet.Cells[row, 7].Value);
-                    server.IpType = Convert.ToString(ESLworksheet.Cells[row, 8].Value);
-                    server.ConsoleIP = Convert.ToString(ESLworksheet.Cells[row, 10].Value);
+                    filteredData.Cells[row, colIndex++].Value = Convert.ToString(ESL.Cells[index, 1].Value);
+                    filteredData.Cells[row, colIndex++].Value = Convert.ToString(ESL.Cells[index, 4].Value);
+                    filteredData.Cells[row, colIndex++].Value = Convert.ToString(ESL.Cells[index, 5].Value);
+                    filteredData.Cells[row, colIndex++].Value = Convert.ToString(ESL.Cells[index, 3].Value);
+                    filteredData.Cells[row, colIndex++].Value = Convert.ToString(ESL.Cells[index, 7].Value);
+                    filteredData.Cells[row, colIndex++].Value = Convert.ToString(ESL.Cells[index, 6].Value);
+                    filteredData.Cells[row, colIndex++].Value = Convert.ToString(ESL.Cells[index, 8].Value);
+                    Console.WriteLine($"Raw {row} was filled in with IP value");
+                    colIndex = 2;
 
-                    if (!dict.ContainsKey(ipAddress))
-                    {
-                        dict.Add(ipAddress, new List<Server>());
-                        dict[ipAddress].Add(server);
-                    }
-                    else
-                    {
-                        dict[ipAddress].Add(server);
-                    }
+
                 }
-                
+                else
+                {
+
+                    filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
+                    filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
+                    filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
+                    filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
+                    filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
+                    filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
+                    filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
+                    Console.WriteLine($"Raw {row} was filled in with Empty value");
+                }
+
+
             }
-            return dict;
 
+            package.Save();
+
+            for (int row2 = 2; row2 < rowCount; row2++)
+            {
+                string ip = Convert.ToString(filteredData.Cells[row2, 1].Value);
+                int indexFromConsoleIPvalues = consoleIPValuesESL.FindIndex(io => io.Equals(ip, StringComparison.Ordinal));
+
+                // finding all indexes of repeatable ConsoleIPs
+
+                //List<int> indecesConsoleIP = Enumerable.Range(0, consoleIPValuesESL.Count).Where(i => consoleIPValuesESL[i] == ip).ToList();
+
+                if (Convert.ToString(filteredData.Cells[row2, 2].Value) == "ZZZZZ" && indexFromConsoleIPvalues != -1)
+                {
+
+                    int colIndex = 2;
+
+                    //INterchanged values
+
+                    filteredData.Cells[row2, colIndex++].Value = Convert.ToString(ESL.Cells[indexFromConsoleIPvalues, 1].Value);
+                    filteredData.Cells[row2, colIndex++].Value = Convert.ToString(ESL.Cells[indexFromConsoleIPvalues, 4].Value);
+                    filteredData.Cells[row2, colIndex++].Value = Convert.ToString(ESL.Cells[indexFromConsoleIPvalues, 5].Value);
+                    filteredData.Cells[row2, colIndex++].Value = Convert.ToString(ESL.Cells[indexFromConsoleIPvalues, 3].Value);
+                    filteredData.Cells[row2, colIndex++].Value = Convert.ToString(ESL.Cells[indexFromConsoleIPvalues, 7].Value);
+                    filteredData.Cells[row2, colIndex++].Value = Convert.ToString(ESL.Cells[indexFromConsoleIPvalues, 6].Value);
+                    filteredData.Cells[row2, colIndex++].Value = Convert.ToString(ESL.Cells[indexFromConsoleIPvalues, 8].Value);
+                    Console.WriteLine($"Raw {row2} was filled in with CONSOLE_IP VALUES...");
+                    colIndex = 2;
+
+
+
+                }
+            }
+
+
+            package.Save();
         }
-
-
-
-
-
-
-        //private static void FillInTheData(ExcelPackage package, Program program, Dictionary<string, List<Server>> dictDatabase)
-        //{
-
-        //    program = new Program();
-
-        //    //Selecting the "FilteredData" sheet
-        //    ExcelWorksheet filteredData = package.Workbook.Worksheets[4];
-
-        //    //selecting the ESL sheet
-
-        //    ExcelWorksheet ESL = package.Workbook.Worksheets[3];
-
-
-
-        //    //check how many row and colums there is in the filteredData sheet
-
-        //    int rowCount = filteredData.Dimension.Rows; //3430
-        //    int colCount = filteredData.Dimension.Columns; //35
-
-        //    int rowCountESL = ESL.Dimension.Rows; //118957
-        //    int colCountESL = ESL.Dimension.Columns;//10
-
-
-
-        //    //Adding two 0 on the first two indeces because the List starts from 0 and the excel from 1. The first row of the excel are the headers -> so two zeros to compensate that
-
-        //    var IPvaluesFromESL = new List<string>() { "0", "0" };
-        //    var consoleIPValuesESL = new List<string>() { "0", "0" };
-
-        //    // Filling in the IP and ConsoleIP values from ESL
-        //    // initial value of i is 2, because in excel the enumeration starts from 1. In the first row are the headers of the excelsheet
-
-        //    for (int i = 2; i <= rowCountESL - 2; i++)
-        //    {
-        //        if (!string.IsNullOrEmpty(Convert.ToString(ESL.Cells[i, 9].Value)))
-        //        {
-        //            IPvaluesFromESL.Add(Convert.ToString(ESL.Cells[i, 9].Value));
-        //        }
-        //        else
-        //        {
-        //            IPvaluesFromESL.Add("0");
-        //        }
-        //        if (!string.IsNullOrEmpty(Convert.ToString(ESL.Cells[i, 10].Value)))
-        //        {
-        //            consoleIPValuesESL.Add(Convert.ToString(ESL.Cells[i, 10].Value));
-        //        }
-        //        else
-        //        {
-        //            consoleIPValuesESL.Add("0");
-        //        }
-
-        //    }
-
-        //    // Iteration through the IP values from the Filtered data
-        //    for (int row = 2; row <= rowCount; row++)
-        //    {
-        //        string ip = Convert.ToString(filteredData.Cells[row, 1].Value);
-
-        //        //finding the index of an existing IP
-        //        int index = IPvaluesFromESL.FindIndex(io => io.Equals(ip, StringComparison.Ordinal));
-
-        //        //finding the index of repeatable IPs
-        //        //var indeces = Enumerable.Range(0, IPvaluesFromESL.Count).Where(i => IPvaluesFromESL[i] == ip).ToList();
-
-
-        //        int colIndex = 2;
-
-        //        if (index == -1)
-        //        {
-        //            filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
-        //            filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
-        //            filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
-        //            filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
-        //            filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
-        //            filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
-        //            filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
-        //            Console.WriteLine($"Raw {row} was filled in with Empty value");
-        //            continue;
-        //        }
-
-        //        //there is no need to check the server status anymore because the data from ESL was filtered in one of the previous steps
-        //        //string serverStatus = Convert.ToString(ESL.Cells[index, 5].Value);
-
-        //        colIndex = 2;
-
-        //        if (program.CheckIfESLValuesContainTheIP(ip, IPvaluesFromESL))
-
-        //        {
-        //            //INterchanged values
-
-        //            filteredData.Cells[row, colIndex++].Value = Convert.ToString(ESL.Cells[index, 1].Value);
-        //            filteredData.Cells[row, colIndex++].Value = Convert.ToString(ESL.Cells[index, 4].Value);
-        //            filteredData.Cells[row, colIndex++].Value = Convert.ToString(ESL.Cells[index, 5].Value);
-        //            filteredData.Cells[row, colIndex++].Value = Convert.ToString(ESL.Cells[index, 3].Value);
-        //            filteredData.Cells[row, colIndex++].Value = Convert.ToString(ESL.Cells[index, 7].Value);
-        //            filteredData.Cells[row, colIndex++].Value = Convert.ToString(ESL.Cells[index, 6].Value);
-        //            filteredData.Cells[row, colIndex++].Value = Convert.ToString(ESL.Cells[index, 8].Value);
-        //            Console.WriteLine($"Raw {row} was filled in with IP value");
-        //            colIndex = 2;
-
-
-        //        }
-        //        else
-        //        {
-
-        //            filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
-        //            filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
-        //            filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
-        //            filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
-        //            filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
-        //            filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
-        //            filteredData.Cells[row, colIndex++].Value = "ZZZZZ";
-        //            Console.WriteLine($"Raw {row} was filled in with Empty value");
-        //        }
-
-
-        //    }
-
-        //    package.Save();
-
-        //    for (int row2 = 2; row2 < rowCount; row2++)
-        //    {
-        //        string ip = Convert.ToString(filteredData.Cells[row2, 1].Value);
-        //        int indexFromConsoleIPvalues = consoleIPValuesESL.FindIndex(io => io.Equals(ip, StringComparison.Ordinal));
-
-        //        // finding all indexes of repeatable ConsoleIPs
-
-        //        //List<int> indecesConsoleIP = Enumerable.Range(0, consoleIPValuesESL.Count).Where(i => consoleIPValuesESL[i] == ip).ToList();
-
-        //        if (Convert.ToString(filteredData.Cells[row2, 2].Value) == "ZZZZZ" && indexFromConsoleIPvalues != -1)
-        //        {
-
-        //            int colIndex = 2;
-
-        //            //INterchanged values
-
-        //            filteredData.Cells[row2, colIndex++].Value = Convert.ToString(ESL.Cells[indexFromConsoleIPvalues, 1].Value);
-        //            filteredData.Cells[row2, colIndex++].Value = Convert.ToString(ESL.Cells[indexFromConsoleIPvalues, 4].Value);
-        //            filteredData.Cells[row2, colIndex++].Value = Convert.ToString(ESL.Cells[indexFromConsoleIPvalues, 5].Value);
-        //            filteredData.Cells[row2, colIndex++].Value = Convert.ToString(ESL.Cells[indexFromConsoleIPvalues, 3].Value);
-        //            filteredData.Cells[row2, colIndex++].Value = Convert.ToString(ESL.Cells[indexFromConsoleIPvalues, 7].Value);
-        //            filteredData.Cells[row2, colIndex++].Value = Convert.ToString(ESL.Cells[indexFromConsoleIPvalues, 6].Value);
-        //            filteredData.Cells[row2, colIndex++].Value = Convert.ToString(ESL.Cells[indexFromConsoleIPvalues, 8].Value);
-        //            Console.WriteLine($"Raw {row2} was filled in with CONSOLE_IP VALUES...");
-        //            colIndex = 2;
-
-
-
-        //        }
-        //    }
-
-
-        //    package.Save();
-        //}
 
         private static void CreatePivotTable(ExcelPackage package)
         {
@@ -510,5 +568,6 @@ namespace ExcelManagementQualysReports
         }
     }
 }
+    
 
 
