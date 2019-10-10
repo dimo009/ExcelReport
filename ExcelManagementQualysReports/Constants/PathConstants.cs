@@ -9,7 +9,7 @@ namespace ExcelManagementQualysReports.Constants
     {
         
 
-        public const string directoryPath = @"C:\Users\dstoyanov5\OneDrive - DXC Production\source\repos\ExcelManagementQualysReports\ExcelManagementQualysReports\Resources\";
+        public const string directoryPath = @"\Resources\";
 
        
 
